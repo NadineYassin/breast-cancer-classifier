@@ -48,7 +48,7 @@ with tab1:
             st.success("✅ Likely Benign (Low Risk)")
 
 # ------------------------------
-# TAB 2: Bulk Dataset Upload (Simplified)
+# TAB 2: Bulk Dataset Upload (Simplified with Final Result)
 # ------------------------------
 with tab2:
     st.header("📂 Upload Dataset for Bulk Prediction")
@@ -85,9 +85,12 @@ with tab2:
                 X_scaled, y, test_size=0.2, random_state=42
             )
 
-            # SMOTE
-            smote = SMOTE(random_state=42)
-            X_res, y_res = smote.fit_resample(X_train, y_train)
+            # ✅ Safe SMOTE (only if both classes exist)
+            if len(set(y_train)) > 1:
+                smote = SMOTE(random_state=42)
+                X_res, y_res = smote.fit_resample(X_train, y_train)
+            else:
+                X_res, y_res = X_train, y_train
 
             # Train SVM
             svm_model = SVC(kernel="rbf", random_state=42)
@@ -96,10 +99,13 @@ with tab2:
             # Predictions
             y_pred = svm_model.predict(X_test)
 
-            # ✅ Final result only
+            # ✅ Final readable results
+            results = ["🚨 Likely Malignant (High Risk)" if pred == 1 
+                       else "✅ Likely Benign (Low Risk)" for pred in y_pred]
+
             st.subheader("✅ Final Predictions")
             st.dataframe(pd.DataFrame({
-                "True Diagnosis": y_test.values,
-                "Predicted Diagnosis": y_pred
+                "True Diagnosis": ["Malignant" if t == 1 else "Benign" for t in y_test.values],
+                "Predicted Result": results
             }).reset_index(drop=True))
 
