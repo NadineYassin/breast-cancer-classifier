@@ -60,29 +60,40 @@ with tab2:
         with st.expander("👀 Preview Uploaded Data", expanded=False):
             st.dataframe(df.head(10))
 
-        # Load sklearn cancer dataset for training
+        # Load sklearn cancer dataset for training (only 5 features to match CSV)
         from sklearn.datasets import load_breast_cancer
         cancer = load_breast_cancer()
-        X_train, _, y_train, _ = train_test_split(
-            cancer.data, cancer.target, test_size=0.2, random_state=42
-        )
 
+        # Select only the 5 features that exist in your CSV
+        features = ["mean radius", "mean texture", "mean perimeter", "mean area", "mean smoothness"]
+        X = pd.DataFrame(cancer.data, columns=cancer.feature_names)[features]
+        y = cancer.target
+
+        # Train/test split
+        X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        # Balance dataset with SMOTE
         smote = SMOTE(random_state=42)
         X_res, y_res = smote.fit_resample(X_train, y_train)
 
+        # Scale features
         scaler = StandardScaler()
         X_res = scaler.fit_transform(X_res)
 
+        # Train SVM model
         svm_model = SVC(kernel="rbf", probability=True, random_state=42)
         svm_model.fit(X_res, y_res)
 
-        # ✅ Align uploaded data with training features
-        required_features = cancer.feature_names
-        for col in required_features:
-            if col not in df.columns:
-                df[col] = 0  # fill missing features with zeros
-
-        df = df[required_features]  # keep only required features
+        # ✅ Now use only the 5 matching features from uploaded CSV
+        rename_map = {
+            "mean_radius": "mean radius",
+            "mean_texture": "mean texture",
+            "mean_perimeter": "mean perimeter",
+            "mean_area": "mean area",
+            "mean_smoothness": "mean smoothness",
+        }
+        df = df.rename(columns=rename_map)
+        df = df[features]
 
         # Scale + Predict
         X_scaled = scaler.transform(df)
@@ -92,15 +103,16 @@ with tab2:
         st.subheader("🔍 Prediction Results")
         benign_count = 0
         malignant_count = 0
-        # ✅ Correct mapping (0 = Malignant, 1 = Benign)
         for i, p in enumerate(preds, start=1):
-            if p == 0:  # malignant
+            if p == 0:
                 st.error(f"🧑‍⚕️ Patient {i}: 🚨 Malignant (High Risk)")
                 malignant_count += 1
-            elif p == 1:  # benign
+            else:
                 st.success(f"🧑‍⚕️ Patient {i}: ✅ Benign (Low Risk)")
                 benign_count += 1
-        
+
+        # ✅ Summary
+        st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
 
         # ✅ Summary
         st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
