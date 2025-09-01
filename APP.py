@@ -48,7 +48,7 @@ with tab1:
             st.success("✅ Likely Benign (Low Risk)")
 
 # ------------------------------
-# TAB 2: Bulk Dataset Upload (Prediction on Uploaded File)
+# TAB 2: Bulk Dataset Upload
 # ------------------------------
 with tab2:
     st.header("📂 Upload Dataset for Bulk Prediction")
@@ -60,59 +60,66 @@ with tab2:
         with st.expander("👀 Preview Uploaded Data", expanded=False):
             st.dataframe(df.head(10))
 
-        # ✅ Auto-detect target if "diagnosis" exists
+        # Case 1: If dataset has diagnosis column → Train & evaluate
         if "diagnosis" in df.columns:
             X = df.drop(columns=["diagnosis"])
             y = df["diagnosis"]
 
-            # Convert to numeric if needed
             if y.dtype == "object":
                 y = y.map({"M": 1, "B": 0})
             y = y.astype(int)
-        else:
-            X = df
-            y = None
 
-        # Scale features
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+            # Scale
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
 
-        # Train/test split if target available
-        if y is not None:
+            # Train-test split
+            from sklearn.model_selection import train_test_split
             X_train, X_test, y_train, y_test = train_test_split(
                 X_scaled, y, test_size=0.2, random_state=42
             )
-        else:
-            X_train, X_test, y_train, y_test = X_scaled, X_scaled, None, None
 
-        # Safe SMOTE only if target exists and has both classes
-        if y_train is not None and len(set(y_train)) > 1:
+            # SMOTE
             smote = SMOTE(random_state=42)
             X_res, y_res = smote.fit_resample(X_train, y_train)
+
+            # Train SVM
+            svm_model = SVC(kernel="rbf", probability=True, random_state=42)
+            svm_model.fit(X_res, y_res)
+
+            # Predictions
+            y_pred = svm_model.predict(X_test)
+
+            st.subheader("📈 Model Performance")
+            st.write(classification_report(y_test, y_pred))
+
+        # Case 2: If dataset has NO diagnosis column → Direct prediction
         else:
-            X_res, y_res = X_train, y_train
+            st.warning("No target column found. Running prediction only...")
 
-        # Train SVM
-        svm_model = SVC(kernel="rbf", probability=True, random_state=42)
-        svm_model.fit(X_res, y_res if y_res is not None else [0]*len(X_res))
+            # Scale
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(df)
 
-        # Predictions
-        y_pred = svm_model.predict(X_test)
+            # Load or train a simple model (for demo, train fresh here)
+            svm_model = SVC(kernel="rbf", probability=True, random_state=42)
+            # Train quickly on built-in dataset
+            from sklearn.datasets import load_breast_cancer
+            cancer = load_breast_cancer()
+            X_train, _, y_train, _ = train_test_split(
+                cancer.data, cancer.target, test_size=0.2, random_state=42
+            )
+            X_res, y_res = SMOTE(random_state=42).fit_resample(X_train, y_train)
+            svm_model.fit(X_res, y_res)
 
-        # ✅ Human-readable results
-        results = ["🚨 Likely Malignant (High Risk)" if p == 1 
-                   else "✅ Likely Benign (Low Risk)" for p in y_pred]
+            # Predict on uploaded file
+            preds = svm_model.predict(X_scaled)
 
-        output_df = pd.DataFrame({"Predicted Result": results})
+            df_results = df.copy()
+            df_results["Prediction"] = ["✅ Likely Benign" if p == 0 else "🚨 Likely Malignant" for p in preds]
 
-        if y_test is not None:
-            output_df.insert(0, "True Diagnosis", ["Malignant" if t == 1 else "Benign" for t in y_test.values])
+            st.subheader("🔍 Prediction Results")
+            st.dataframe(df_results.head(20))
 
-        st.subheader("✅ Prediction Results")
-        st.dataframe(output_df.reset_index(drop=True))
-
-        # Download option
-        csv = output_df.to_csv(index=False).encode("utf-8")
-        st.download_button("💾 Download Predictions", csv, "predictions.csv", "text/csv")
-
+            st.success("✅ Predictions generated successfully!")
 
