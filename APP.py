@@ -114,5 +114,4 @@ with tab2:
         # ✅ Summary
         st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
 
-        # ✅ Summary
-        st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
+      
