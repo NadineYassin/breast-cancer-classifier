@@ -46,6 +46,7 @@ with tab1:
             st.error("🚨 Likely Malignant (High Risk)")
         else:
             st.success("✅ Likely Benign (Low Risk)")
+
 # ------------------------------
 # TAB 2: Bulk Dataset Upload
 # ------------------------------
@@ -65,6 +66,15 @@ with tab2:
             # Features & target
             X = df.drop(columns=[target_column])
             y = df[target_column]
+
+            # ✅ FIX: ensure target column is numeric
+            if y.dtype == "object":
+                if set(y.unique()) <= {"M", "B"}:
+                    y = y.map({"M": 1, "B": 0})
+                else:
+                    st.error("❌ Target column must be numeric or contain only 'M'/'B'")
+                    st.stop()
+            y = y.astype(int)
 
             # Scale
             scaler = StandardScaler()
