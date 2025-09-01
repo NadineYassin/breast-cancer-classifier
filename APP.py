@@ -48,7 +48,7 @@ with tab1:
             st.success("✅ Likely Benign (Low Risk)")
 
 # ------------------------------
-# TAB 2: Bulk Dataset Upload (Simplified with Final Result)
+# TAB 2: Bulk Dataset Upload (Prediction on Uploaded File)
 # ------------------------------
 with tab2:
     st.header("📂 Upload Dataset for Bulk Prediction")
@@ -60,52 +60,59 @@ with tab2:
         with st.expander("👀 Preview Uploaded Data", expanded=False):
             st.dataframe(df.head(10))
 
-        target_column = st.selectbox("🎯 Select Target Column", df.columns)
+        # ✅ Auto-detect target if "diagnosis" exists
+        if "diagnosis" in df.columns:
+            X = df.drop(columns=["diagnosis"])
+            y = df["diagnosis"]
 
-        if target_column:
-            # Features & target
-            X = df.drop(columns=[target_column])
-            y = df[target_column]
-
-            # ✅ Convert target to numeric if needed
+            # Convert to numeric if needed
             if y.dtype == "object":
-                if set(y.unique()) <= {"M", "B"}:
-                    y = y.map({"M": 1, "B": 0})
-                else:
-                    st.error("❌ Target column must be numeric or contain only 'M'/'B'")
-                    st.stop()
+                y = y.map({"M": 1, "B": 0})
             y = y.astype(int)
+        else:
+            X = df
+            y = None
 
-            # Scale
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
+        # Scale features
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
-            # Train-test split
+        # Train/test split if target available
+        if y is not None:
             X_train, X_test, y_train, y_test = train_test_split(
                 X_scaled, y, test_size=0.2, random_state=42
             )
+        else:
+            X_train, X_test, y_train, y_test = X_scaled, X_scaled, None, None
 
-            # ✅ Safe SMOTE (only if both classes exist)
-            if len(set(y_train)) > 1:
-                smote = SMOTE(random_state=42)
-                X_res, y_res = smote.fit_resample(X_train, y_train)
-            else:
-                X_res, y_res = X_train, y_train
+        # Safe SMOTE only if target exists and has both classes
+        if y_train is not None and len(set(y_train)) > 1:
+            smote = SMOTE(random_state=42)
+            X_res, y_res = smote.fit_resample(X_train, y_train)
+        else:
+            X_res, y_res = X_train, y_train
 
-            # Train SVM
-            svm_model = SVC(kernel="rbf", random_state=42)
-            svm_model.fit(X_res, y_res)
+        # Train SVM
+        svm_model = SVC(kernel="rbf", probability=True, random_state=42)
+        svm_model.fit(X_res, y_res if y_res is not None else [0]*len(X_res))
 
-            # Predictions
-            y_pred = svm_model.predict(X_test)
+        # Predictions
+        y_pred = svm_model.predict(X_test)
 
-            # ✅ Final readable results
-            results = ["🚨 Likely Malignant (High Risk)" if pred == 1 
-                       else "✅ Likely Benign (Low Risk)" for pred in y_pred]
+        # ✅ Human-readable results
+        results = ["🚨 Likely Malignant (High Risk)" if p == 1 
+                   else "✅ Likely Benign (Low Risk)" for p in y_pred]
 
-            st.subheader("✅ Final Predictions")
-            st.dataframe(pd.DataFrame({
-                "True Diagnosis": ["Malignant" if t == 1 else "Benign" for t in y_test.values],
-                "Predicted Result": results
-            }).reset_index(drop=True))
+        output_df = pd.DataFrame({"Predicted Result": results})
+
+        if y_test is not None:
+            output_df.insert(0, "True Diagnosis", ["Malignant" if t == 1 else "Benign" for t in y_test.values])
+
+        st.subheader("✅ Prediction Results")
+        st.dataframe(output_df.reset_index(drop=True))
+
+        # Download option
+        csv = output_df.to_csv(index=False).encode("utf-8")
+        st.download_button("💾 Download Predictions", csv, "predictions.csv", "text/csv")
+
 
