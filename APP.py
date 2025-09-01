@@ -92,13 +92,14 @@ with tab2:
         st.subheader("🔍 Prediction Results")
         benign_count = 0
         malignant_count = 0
+        # Correct label mapping (0 = Malignant, 1 = Benign)
         for i, p in enumerate(preds, start=1):
             if p == 0:
-                st.success(f"🧑‍⚕️ Patient {i}: ✅ Likely Benign (Low Risk)")
-                benign_count += 1
-            else:
                 st.error(f"🧑‍⚕️ Patient {i}: 🚨 Likely Malignant (High Risk)")
                 malignant_count += 1
+            else:
+                st.success(f"🧑‍⚕️ Patient {i}: ✅ Likely Benign (Low Risk)")
+                benign_count += 1
 
         # ✅ Summary
         st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
