@@ -48,7 +48,7 @@ with tab1:
             st.success("✅ Likely Benign (Low Risk)")
 
 # ------------------------------
-# TAB 2: Bulk Dataset Upload
+# TAB 2: Bulk Dataset Upload (Simplified)
 # ------------------------------
 with tab2:
     st.header("📂 Upload Dataset for Bulk Prediction")
@@ -67,7 +67,7 @@ with tab2:
             X = df.drop(columns=[target_column])
             y = df[target_column]
 
-            # ✅ FIX: ensure target column is numeric
+            # ✅ Convert target to numeric if needed
             if y.dtype == "object":
                 if set(y.unique()) <= {"M", "B"}:
                     y = y.map({"M": 1, "B": 0})
@@ -81,9 +81,8 @@ with tab2:
             X_scaled = scaler.fit_transform(X)
 
             # Train-test split
-            test_size = st.slider("Test Size (%)", 10, 40, 20, step=5) / 100
             X_train, X_test, y_train, y_test = train_test_split(
-                X_scaled, y, test_size=test_size, random_state=42
+                X_scaled, y, test_size=0.2, random_state=42
             )
 
             # SMOTE
@@ -91,33 +90,16 @@ with tab2:
             X_res, y_res = smote.fit_resample(X_train, y_train)
 
             # Train SVM
-            kernel = st.radio("Choose SVM Kernel", ["rbf", "linear"], horizontal=True)
-            svm_model = SVC(kernel=kernel, probability=True, random_state=42)
+            svm_model = SVC(kernel="rbf", random_state=42)
             svm_model.fit(X_res, y_res)
 
             # Predictions
             y_pred = svm_model.predict(X_test)
-            y_proba = svm_model.predict_proba(X_test)[:, 1]
 
-            # Report
-            report = classification_report(y_test, y_pred, output_dict=True)
+            # ✅ Final result only
+            st.subheader("✅ Final Predictions")
+            st.dataframe(pd.DataFrame({
+                "True Diagnosis": y_test.values,
+                "Predicted Diagnosis": y_pred
+            }).reset_index(drop=True))
 
-            # Metrics
-            st.subheader("📈 Model Performance")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Accuracy", f"{report['accuracy']*100:.1f}%")
-            col2.metric("Recall (Malignant)", f"{report['1']['recall']*100:.1f}%")
-            col3.metric("Precision (Malignant)", f"{report['1']['precision']*100:.1f}%")
-
-            # Confusion Matrix
-            st.markdown("#### 📉 Confusion Matrix")
-            fig, ax = plt.subplots()
-            ConfusionMatrixDisplay.from_estimator(svm_model, X_test, y_test, ax=ax, cmap="Reds")
-            st.pyplot(fig)
-
-            # Probabilities
-            with st.expander("🔍 View Prediction Probabilities"):
-                prob_df = pd.DataFrame({"True Diagnosis": y_test, "Cancer Probability": y_proba})
-                st.dataframe(prob_df.head(20))
-
-            st.success("✅ Bulk evaluation complete!")
