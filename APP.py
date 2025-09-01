@@ -60,7 +60,7 @@ with tab2:
         with st.expander("👀 Preview Uploaded Data", expanded=False):
             st.dataframe(df.head(10))
 
-        # Train a simple model (using sklearn dataset)
+        # Load sklearn cancer dataset for training
         from sklearn.datasets import load_breast_cancer
         cancer = load_breast_cancer()
         X_train, _, y_train, _ = train_test_split(
@@ -76,14 +76,29 @@ with tab2:
         svm_model = SVC(kernel="rbf", probability=True, random_state=42)
         svm_model.fit(X_res, y_res)
 
-        # Predict on uploaded file
+        # ✅ Align uploaded data with training features
+        required_features = cancer.feature_names
+        for col in required_features:
+            if col not in df.columns:
+                df[col] = 0  # fill missing features with zeros
+
+        df = df[required_features]  # keep only required features
+
+        # Scale + Predict
         X_scaled = scaler.transform(df)
         preds = svm_model.predict(X_scaled)
 
         # Show results row by row
         st.subheader("🔍 Prediction Results")
+        benign_count = 0
+        malignant_count = 0
         for i, p in enumerate(preds, start=1):
             if p == 0:
                 st.success(f"🧑‍⚕️ Patient {i}: ✅ Likely Benign (Low Risk)")
+                benign_count += 1
             else:
                 st.error(f"🧑‍⚕️ Patient {i}: 🚨 Likely Malignant (High Risk)")
+                malignant_count += 1
+
+        # ✅ Summary
+        st.info(f"📊 Summary: {benign_count} Benign, {malignant_count} Malignant")
